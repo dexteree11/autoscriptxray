@@ -70,8 +70,8 @@ do_issue_cert() {
     read -p "$(echo -e "  ${ORANGE}Domain (e.g. vpn.example.com): ${NC}")" input_domain
     [[ -z "$input_domain" ]] && { error "Domain cannot be empty."; pause; return; }
 
-    read -p "$(echo -e "  ${ORANGE}Cloudflare API Key (Global): ${NC}")" input_cf_key
-    [[ -z "$input_cf_key" ]] && { error "CF API Key cannot be empty."; pause; return; }
+    read -p "$(echo -e "  ${ORANGE}Cloudflare API Token: ${NC}")" input_cf_key
+    [[ -z "$input_cf_key" ]] && { error "CF API Token cannot be empty."; pause; return; }
 
     read -p "$(echo -e "  ${ORANGE}Cloudflare Account Email: ${NC}")" input_cf_email
     [[ -z "$input_cf_email" ]] && { error "CF Email cannot be empty."; pause; return; }

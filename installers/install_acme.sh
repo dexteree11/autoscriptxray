@@ -69,7 +69,7 @@ install_acme() {
 
     chmod +x /tmp/install_acme.sh
     spinner "Running acme.sh installer" \
-        bash /tmp/install_acme.sh email="admin@imagitech.local" --force 2>&1
+        bash /tmp/install_acme.sh email="admin@imagitech.online" --force 2>&1
     local rc=$?
     rm -f /tmp/install_acme.sh
 
@@ -97,12 +97,12 @@ install_acme() {
 # =============================================================================
 issue_cert_cloudflare() {
     local DOMAIN="${1}"
-    local CF_KEY="${2}"
+    local CF_TOKEN="${2}"
     local CF_EMAIL="${3}"
 
     # ---- Argument validation ------------------------------------------------
-    if [[ -z "${DOMAIN}" || -z "${CF_KEY}" || -z "${CF_EMAIL}" ]]; then
-        error "Usage: issue_cert_cloudflare <DOMAIN> <CF_KEY> <CF_EMAIL>"
+    if [[ -z "${DOMAIN}" || -z "${CF_TOKEN}" || -z "${CF_EMAIL}" ]]; then
+        error "Usage: issue_cert_cloudflare <DOMAIN> <CF_TOKEN> <CF_EMAIL>"
         return 1
     fi
 
@@ -126,8 +126,8 @@ issue_cert_cloudflare() {
     fi
 
     # ---- Export Cloudflare credentials as environment variables --------------
-    export CF_Key="${CF_KEY}"
-    export CF_Email="${CF_EMAIL}"
+    export CF_Token="${CF_TOKEN}"
+    # CF_Email is used for Let's Encrypt account registration
 
     step "Issuing certificate for domain: ${DOMAIN}"
     info  "DNS provider : Cloudflare"
@@ -135,6 +135,9 @@ issue_cert_cloudflare() {
     info  "Cert store   : ${KEYS_DIR}"
 
     # ---- Issue the certificate -----------------------------------------------
+    # Explicitly register account first to overwrite any invalid .local emails
+    "${ACME_BIN}" --register-account -m "${CF_EMAIL}" --server letsencrypt &>/dev/null || true
+
     spinner "Requesting certificate (DNS propagation may take ~60 s)" \
         "${ACME_BIN}" --issue \
             --dns dns_cf \
@@ -186,7 +189,7 @@ issue_cert_cloudflare() {
     info  "  Renewal hook: ${RENEWAL_HOOK}"
 
     # ---- Save configuration to panel conf file --------------------------------
-    _save_conf "${DOMAIN}" "${CF_KEY}" "${CF_EMAIL}"
+    _save_conf "${DOMAIN}" "${CF_TOKEN}" "${CF_EMAIL}"
 
     draw_mid "Auto-Renewal"
     info  "acme.sh registers a cron job for automatic renewal."
@@ -277,11 +280,11 @@ renew_cert() {
     fi
 
     # Re-load saved Cloudflare credentials if available
-    local CF_KEY CF_EMAIL
-    CF_KEY=$(conf_get CF_Key)
+    local CF_TOKEN CF_EMAIL
+    CF_TOKEN=$(conf_get CF_Token)
     CF_EMAIL=$(conf_get CF_Email)
-    [[ -n "${CF_KEY}"   ]] && export CF_Key="${CF_KEY}"
-    [[ -n "${CF_EMAIL}" ]] && export CF_Email="${CF_EMAIL}"
+    [[ -n "${CF_TOKEN}" ]] && export CF_Token="${CF_TOKEN}"
+    # No need to export CF_Email for CF DNS auth when using Token
 
     spinner "Renewing certificate (force)" \
         "${ACME_BIN}" --renew \
@@ -375,13 +378,13 @@ remove_cert() {
 }
 
 # =============================================================================
-#  _save_conf <DOMAIN> <CF_KEY> <CF_EMAIL>  [private / internal]
-#  Writes DOMAIN, CF_Key, and CF_Email to the panel config file.
+#  _save_conf <DOMAIN> <CF_TOKEN> <CF_EMAIL>  [private / internal]
+#  Writes DOMAIN, CF_Token, and CF_Email to the panel config file.
 #  Creates the file if it does not exist; updates existing keys in-place.
 # =============================================================================
 _save_conf() {
     local DOMAIN="${1}"
-    local CF_KEY="${2}"
+    local CF_TOKEN="${2}"
     local CF_EMAIL="${3}"
 
     # Ensure parent directory exists
@@ -399,7 +402,7 @@ _save_conf() {
     }
 
     _conf_set "DOMAIN"   "${DOMAIN}"
-    _conf_set "CF_Key"   "${CF_KEY}"
+    _conf_set "CF_Token" "${CF_TOKEN}"
     _conf_set "CF_Email" "${CF_EMAIL}"
 
     chmod 600 "${PANEL_CONF}"
