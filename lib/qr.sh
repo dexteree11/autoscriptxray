@@ -50,6 +50,8 @@ build_vless_reality_xhttp_link() {
     link+="&pbk=${public_key}"
     link+="&sid=${short_id}"
     link+="&sni=${sni}"
+    link+="&host=${sni}"
+    link+="&path=/"
     link+="&fp=chrome"
     link+="&flow="
     link+="#$(python3 -c "import urllib.parse; print(urllib.parse.quote('${remark}'))" 2>/dev/null || echo "${remark// /%20}")"

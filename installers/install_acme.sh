@@ -69,7 +69,7 @@ install_acme() {
 
     chmod +x /tmp/install_acme.sh
     spinner "Running acme.sh installer" \
-        bash /tmp/install_acme.sh --install-online -m "admin@imagitech.local" 2>&1
+        bash /tmp/install_acme.sh email="admin@imagitech.local" --force 2>&1
     local rc=$?
     rm -f /tmp/install_acme.sh
 
