@@ -337,7 +337,7 @@ EOF
     },
     "xhttpSettings": {
       "path": "/",
-      "host": "${REALITY_SNI}"
+      "mode": "auto"
     }
   },
   "sniffing": { "enabled": true, "destOverride": ["http","tls","quic"] }

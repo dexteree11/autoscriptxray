@@ -63,9 +63,12 @@ warn()    { echo -e "  ${ORANGE}[!]${NC} $*"; }
 step()    { echo -e "  ${MAGENTA}[→]${NC} $*"; }
 
 # --- Spinner for long operations ---
+# Usage: spinner "Message..." command arg1 arg2
 spinner() {
-    local pid=$1
-    local msg="${2:-Working...}"
+    local msg="$1"
+    shift
+    "$@" &
+    local pid=$!
     local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
     local i=0
     while kill -0 "$pid" 2>/dev/null; do
@@ -73,7 +76,10 @@ spinner() {
         printf "\r  ${CYAN}${spin:$i:1}${NC}  ${DIM}${msg}${NC}"
         sleep 0.1
     done
+    wait "$pid"
+    local rc=$?
     printf "\r%-60s\r" ""  # clear spinner line
+    return $rc
 }
 
 # --- Print a two-column key: value line ---
