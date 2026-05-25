@@ -1,0 +1,2 @@
+#!/bin/bash
+exec bash /opt/imagitech-xray/menus/main_menu.sh "$@"

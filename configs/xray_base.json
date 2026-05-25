@@ -1,0 +1,49 @@
+{
+  "log": {
+    "loglevel": "warning",
+    "access": "/opt/imagitech-xray/core/logs/access.log",
+    "error":  "/opt/imagitech-xray/core/logs/error.log"
+  },
+  "inbounds": [],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {}
+    },
+    {
+      "tag": "blocked",
+      "protocol": "blackhole",
+      "settings": {}
+    }
+  ],
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "type": "field",
+        "ip": ["geoip:private"],
+        "outboundTag": "direct"
+      },
+      {
+        "type": "field",
+        "domain": ["geosite:category-ads-all"],
+        "outboundTag": "blocked"
+      }
+    ]
+  },
+  "policy": {
+    "levels": {
+      "0": {
+        "handshake": 10,
+        "connIdle": 300,
+        "uplinkOnly": 2,
+        "downlinkOnly": 5,
+        "statsUserUplink": true,
+        "statsUserDownlink": true,
+        "bufferSize": 64
+      }
+    }
+  },
+  "stats": {}
+}
