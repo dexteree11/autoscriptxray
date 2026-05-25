@@ -57,22 +57,22 @@ edit_panel_conf() {
     echo ""
 
     read -p "$(echo -e "  ${ORANGE}Domain [${DOMAIN:-not set}]: ${NC}")" val
-    [[ -n "$val" ]] && sed -i "s|^DOMAIN=.*|DOMAIN=\"${val}\"|" "$CONF_FILE" \
-        || echo "DOMAIN=\"${val}\"" >> "$CONF_FILE" 2>/dev/null
+    if [[ -n "$val" ]]; then
+        if grep -q "^DOMAIN=" "$CONF_FILE" 2>/dev/null; then
+            sed -i "s|^DOMAIN=.*|DOMAIN=\"${val}\"|" "$CONF_FILE"
+        else
+            echo "DOMAIN=\"${val}\"" >> "$CONF_FILE"
+        fi
+    fi
 
-    read -p "$(echo -e "  ${ORANGE}Cloudflare Email [${CF_Email:-not set}]: ${NC}")" val
-    [[ -n "$val" ]] && {
-        grep -q "^CF_Email=" "$CONF_FILE" 2>/dev/null \
-            && sed -i "s|^CF_Email=.*|CF_Email=\"${val}\"|" "$CONF_FILE" \
-            || echo "CF_Email=\"${val}\"" >> "$CONF_FILE"
-    }
-
-    read -p "$(echo -e "  ${ORANGE}Cloudflare API Key [****]: ${NC}")" val
-    [[ -n "$val" ]] && {
-        grep -q "^CF_Key=" "$CONF_FILE" 2>/dev/null \
-            && sed -i "s|^CF_Key=.*|CF_Key=\"${val}\"|" "$CONF_FILE" \
-            || echo "CF_Key=\"${val}\"" >> "$CONF_FILE"
-    }
+    read -p "$(echo -e "  ${ORANGE}ACME Email [${ACME_EMAIL:-not set}]: ${NC}")" val
+    if [[ -n "$val" ]]; then
+        if grep -q "^ACME_EMAIL=" "$CONF_FILE" 2>/dev/null; then
+            sed -i "s|^ACME_EMAIL=.*|ACME_EMAIL=\"${val}\"|" "$CONF_FILE"
+        else
+            echo "ACME_EMAIL=\"${val}\"" >> "$CONF_FILE"
+        fi
+    fi
 
     success "Configuration saved."
     pause

@@ -223,12 +223,12 @@ install_protocol() {
         pause; return
     fi
 
-    # The inbound listens on 127.0.0.1:LOCAL_PORT; Nginx proxies 443 → LOCAL_PORT
+    # The inbound listens on 127.0.0.1:LOCAL_PORT; Nginx terminates TLS and proxies here
     info "Xray will listen on 127.0.0.1:${LOCAL_PORT} (Nginx → ${NGINX_PORT})."
     info "Checking for port conflicts on internal port ${LOCAL_PORT}..."
     check_ports_conflict "$LOCAL_PORT" || return
 
-    # Build inbound JSON
+    # Build inbound JSON — security:none because Nginx handles TLS
     local inbound_json
     inbound_json=$(cat <<EOF
 {
@@ -242,16 +242,7 @@ install_protocol() {
   },
   "streamSettings": {
     "network": "ws",
-    "security": "tls",
-    "tlsSettings": {
-      "serverName": "${DOMAIN}",
-      "certificates": [
-        {
-          "certificateFile": "${CERT_PATH}",
-          "keyFile": "${KEY_PATH}"
-        }
-      ]
-    },
+    "security": "none",
     "wsSettings": {
       "path": "${WS_PATH}",
       "headers": {

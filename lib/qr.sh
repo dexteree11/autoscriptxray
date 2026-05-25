@@ -31,9 +31,17 @@ show_link() {
     echo ""
 }
 
+# --- URL-encode a string ---
+url_encode() {
+    local raw="$1"
+    python3 -c "import urllib.parse; print(urllib.parse.quote('${raw}', safe=''))" 2>/dev/null \
+        || echo "$raw" | sed 's/ /%20/g; s/\//%2F/g; s/:/%3A/g'
+}
+
 # ==============================================================
-# VLESS-REALITY Share Link
+# VLESS-REALITY-xHTTP Share Link
 # Format: vless://UUID@IP:PORT?type=xhttp&security=reality&...#REMARK
+# Matches the exact working URI format from the reference config
 # ==============================================================
 build_vless_reality_xhttp_link() {
     local uuid="$1"
@@ -42,18 +50,24 @@ build_vless_reality_xhttp_link() {
     local public_key="$4"
     local short_id="$5"
     local sni="$6"
-    local remark="${7:-VLESS-REALITY-xHTTP}"
+    local path="$7"
+    local remark="${8:-VLESS-REALITY-xHTTP}"
+
+    # URL-encode the path (e.g. /abc123 → %2Fabc123)
+    local encoded_path
+    encoded_path=$(url_encode "$path")
 
     local link="vless://${uuid}@${ip}:${port}"
-    link+="?type=xhttp"
-    link+="&security=reality"
+    link+="?security=reality"
+    link+="&encryption=none"
     link+="&pbk=${public_key}"
-    link+="&sid=${short_id}"
-    link+="&sni=${sni}"
-    link+="&path=%2F"
+    link+="&headerType=none"
     link+="&fp=chrome"
-    link+="&flow="
-    link+="#$(python3 -c "import urllib.parse; print(urllib.parse.quote('${remark}'))" 2>/dev/null || echo "${remark// /%20}")"
+    link+="&type=xhttp"
+    link+="&path=${encoded_path}"
+    link+="&sni=${sni}"
+    link+="&sid=${short_id}"
+    link+="#$(url_encode "$remark")"
 
     echo "$link"
 }
@@ -71,14 +85,16 @@ build_vless_reality_tcp_link() {
     local remark="${7:-VLESS-REALITY-TCP}"
 
     local link="vless://${uuid}@${ip}:${port}"
-    link+="?type=tcp"
-    link+="&security=reality"
+    link+="?security=reality"
+    link+="&encryption=none"
     link+="&pbk=${public_key}"
-    link+="&sid=${short_id}"
-    link+="&sni=${sni}"
+    link+="&headerType=none"
     link+="&fp=chrome"
+    link+="&type=tcp"
     link+="&flow=xtls-rprx-vision"
-    link+="#$(python3 -c "import urllib.parse; print(urllib.parse.quote('${remark}'))" 2>/dev/null || echo "${remark// /%20}")"
+    link+="&sni=${sni}"
+    link+="&sid=${short_id}"
+    link+="#$(url_encode "$remark")"
 
     echo "$link"
 }
@@ -93,14 +109,18 @@ build_vless_ws_link() {
     local path="${4:-/vless}"
     local remark="${5:-VLESS-WS-TLS}"
 
+    local encoded_path
+    encoded_path=$(url_encode "$path")
+
     local link="vless://${uuid}@${domain}:${port}"
     link+="?type=ws"
     link+="&security=tls"
     link+="&sni=${domain}"
-    link+="&path=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${path}'))" 2>/dev/null || echo "${path//\//\%2F}")"
+    link+="&path=${encoded_path}"
     link+="&host=${domain}"
     link+="&fp=chrome"
-    link+="#$(python3 -c "import urllib.parse; print(urllib.parse.quote('${remark}'))" 2>/dev/null || echo "${remark// /%20}")"
+    link+="&encryption=none"
+    link+="#$(url_encode "$remark")"
 
     echo "$link"
 }
@@ -112,17 +132,20 @@ build_trojan_ws_link() {
     local password="$1"
     local domain="$2"
     local port="${3:-443}"
-    local path="${4:-/trojan}"
+    local path="${4:-/trojan-ws}"
     local remark="${5:-Trojan-WS-TLS}"
+
+    local encoded_path
+    encoded_path=$(url_encode "$path")
 
     local link="trojan://${password}@${domain}:${port}"
     link+="?type=ws"
     link+="&security=tls"
     link+="&sni=${domain}"
-    link+="&path=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${path}'))" 2>/dev/null || echo "${path//\//\%2F}")"
+    link+="&path=${encoded_path}"
     link+="&host=${domain}"
     link+="&fp=chrome"
-    link+="#$(python3 -c "import urllib.parse; print(urllib.parse.quote('${remark}'))" 2>/dev/null || echo "${remark// /%20}")"
+    link+="#$(url_encode "$remark")"
 
     echo "$link"
 }
@@ -141,7 +164,7 @@ build_trojan_tcp_link() {
     link+="&security=tls"
     link+="&sni=${domain}"
     link+="&fp=chrome"
-    link+="#$(python3 -c "import urllib.parse; print(urllib.parse.quote('${remark}'))" 2>/dev/null || echo "${remark// /%20}")"
+    link+="#$(url_encode "$remark")"
 
     echo "$link"
 }

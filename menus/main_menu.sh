@@ -80,7 +80,7 @@ draw_main_menu() {
     echo -e "${CYAN}  ║${NC}  ${BOLD}── MANAGEMENT ──────────────────────────────────────${NC}  ${CYAN}║${NC}"
     echo -e "${CYAN}  ╠══════════════════════════════════════════════════════════╣${NC}"
     printf "${CYAN}  ║${NC}  ${MAGENTA}[07]${NC} %-54s${CYAN}║${NC}\n" "Xray Service Manager"
-    printf "${CYAN}  ║${NC}  ${MAGENTA}[08]${NC} %-54s${CYAN}║${NC}\n" "Certificate Manager (acme.sh + Cloudflare)"
+    printf "${CYAN}  ║${NC}  ${MAGENTA}[08]${NC} %-54s${CYAN}║${NC}\n" "Certificate Manager (TLS / acme.sh)"
     printf "${CYAN}  ║${NC}  ${MAGENTA}[09]${NC} %-54s${CYAN}║${NC}\n" "Nginx Manager"
     printf "${CYAN}  ║${NC}  ${MAGENTA}[10]${NC} %-54s${CYAN}║${NC}\n" "Settings & Configuration"
     echo -e "${CYAN}  ╠══════════════════════════════════════════════════════════╣${NC}"

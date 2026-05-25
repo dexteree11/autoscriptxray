@@ -30,16 +30,16 @@ CONF_FILE="/opt/imagitech-xray/core/imagitech-xray.conf"
 
 REALITY_KEYS_FILE="/opt/imagitech-xray/core/keys/reality_${TRANSPORT}.env"
 
-# --- Load or generate REALITY keys ---
+# --- Load or reset REALITY keys ---
 load_reality_keys() {
+    REALITY_PRIVATE_KEY=""
+    REALITY_PUBLIC_KEY=""
+    REALITY_SHORT_ID=""
+    REALITY_SNI=""
+    REALITY_PORT=""
+    REALITY_PATH=""
     if [[ -f "$REALITY_KEYS_FILE" ]]; then
         source "$REALITY_KEYS_FILE"
-    else
-        REALITY_PRIVATE_KEY=""
-        REALITY_PUBLIC_KEY=""
-        REALITY_SHORT_ID=""
-        REALITY_SNI=""
-        REALITY_PORT=""
     fi
 }
 
@@ -51,6 +51,7 @@ REALITY_PUBLIC_KEY="${REALITY_PUBLIC_KEY}"
 REALITY_SHORT_ID="${REALITY_SHORT_ID}"
 REALITY_SNI="${REALITY_SNI}"
 REALITY_PORT="${REALITY_PORT}"
+REALITY_PATH="${REALITY_PATH}"
 EOF
 }
 
@@ -59,8 +60,8 @@ draw_header() {
     load_reality_keys
     local svc
     svc=$(service_status "xray")
-    local users_count
-    users_count=$(users_count "$USERS_PROTO")
+    local ucount
+    ucount=$(users_count "$USERS_PROTO")
     clear
     echo ""
     echo -e "${CYAN}  ╔══════════════════════════════════════════════════════════╗${NC}"
@@ -68,7 +69,10 @@ draw_header() {
     echo -e "${CYAN}  ╠══════════════════════════════════════════════════════════╣${NC}"
     printf "${CYAN}  ║${NC}  %-56s${CYAN}║${NC}\n" "  Port    : ${REALITY_PORT:-not configured}"
     printf "${CYAN}  ║${NC}  %-56s${CYAN}║${NC}\n" "  SNI     : ${REALITY_SNI:-not configured}"
-    printf "${CYAN}  ║${NC}  %-56s${CYAN}║${NC}\n" "  Users   : ${users_count}   Xray: ${svc}"
+    if [[ "$TRANSPORT" == "xhttp" ]]; then
+        printf "${CYAN}  ║${NC}  %-56s${CYAN}║${NC}\n" "  Path    : ${REALITY_PATH:-not configured}"
+    fi
+    printf "${CYAN}  ║${NC}  %-56s${CYAN}║${NC}\n" "  Users   : ${ucount}   Xray: ${svc}"
     echo -e "${CYAN}  ╠══════════════════════════════════════════════════════════╣${NC}"
     printf "${CYAN}  ║${NC}  ${CYAN}[01]${NC} %-52s${CYAN}║${NC}\n" "Add User"
     printf "${CYAN}  ║${NC}  ${CYAN}[02]${NC} %-52s${CYAN}║${NC}\n" "Delete User"
@@ -76,7 +80,7 @@ draw_header() {
     printf "${CYAN}  ║${NC}  ${CYAN}[04]${NC} %-52s${CYAN}║${NC}\n" "Show User Link + QR"
     echo -e "${CYAN}  ╠══════════════════════════════════════════════════════════╣${NC}"
     printf "${CYAN}  ║${NC}  ${MAGENTA}[05]${NC} %-52s${CYAN}║${NC}\n" "Install / Configure Protocol"
-    printf "${CYAN}  ║${NC}  ${MAGENTA}[06]${NC} %-52s${CYAN}║${NC}\n" "Start / Stop / Restart Inbound"
+    printf "${CYAN}  ║${NC}  ${MAGENTA}[06]${NC} %-52s${CYAN}║${NC}\n" "Start / Stop / Restart Xray"
     printf "${CYAN}  ║${NC}  ${MAGENTA}[07]${NC} %-52s${CYAN}║${NC}\n" "Show Config Info"
     echo -e "${CYAN}  ╠══════════════════════════════════════════════════════════╣${NC}"
     printf "${CYAN}  ║${NC}  ${RED}[00]${NC} %-52s${CYAN}║${NC}\n" "Back to Main Menu"
@@ -93,7 +97,6 @@ add_user() {
     echo -e "  ${BOLD}ADD USER — ${PROTO_LABEL}${NC}"
     draw_line
 
-    # Prompt for remark
     while true; do
         read -p "$(echo -e "  ${ORANGE}Remark / Account Name: ${NC}")" remark
         [[ -z "$remark" ]] && { error "Remark cannot be empty."; continue; }
@@ -104,20 +107,17 @@ add_user() {
         break
     done
 
-    # Generate UUID
     local uuid
     uuid=$(xray_gen_uuid)
     success "Generated UUID: ${BWHITE}${uuid}${NC}"
 
-    # Add to user file
     users_add "$USERS_PROTO" "$uuid" "$remark"
 
-    # Add to Xray config
     if jq -e --arg t "$INBOUND_TAG" '.inbounds[] | select(.tag == $t)' /usr/local/etc/xray/config.json &>/dev/null; then
         xray_add_vless_client "$INBOUND_TAG" "$uuid" "$remark" "$FLOW"
         xray_reload
     else
-        warn "Protocol not yet installed. User saved — install the protocol first (option [05])."
+        warn "Protocol not yet installed. User saved — install it first (option [05])."
     fi
 
     echo ""
@@ -209,7 +209,7 @@ show_user_link() {
         link=$(build_vless_reality_xhttp_link \
             "$SELECTED_USER_ID" "$ip" "$REALITY_PORT" \
             "$REALITY_PUBLIC_KEY" "$REALITY_SHORT_ID" "$REALITY_SNI" \
-            "$SELECTED_USER_REMARK")
+            "$REALITY_PATH" "$SELECTED_USER_REMARK")
     fi
 
     echo ""
@@ -218,6 +218,9 @@ show_user_link() {
     kv "IP"      "$ip"
     kv "Port"    "$REALITY_PORT"
     kv "SNI"     "$REALITY_SNI"
+    if [[ "$TRANSPORT" == "xhttp" ]]; then
+        kv "Path"    "$REALITY_PATH"
+    fi
     kv "PubKey"  "$REALITY_PUBLIC_KEY"
     kv "ShortID" "$REALITY_SHORT_ID"
 
@@ -236,31 +239,31 @@ install_protocol() {
     draw_line
     echo ""
 
-    # Port conflict check
-    read -p "$(echo -e "  ${ORANGE}Listening port [default: 443]: ${NC}")" port
-    REALITY_PORT="${port:-443}"
+    # Port
+    read -p "$(echo -e "  ${ORANGE}Listening port [default: ${DEFAULT_PORT}]: ${NC}")" port
+    REALITY_PORT="${port:-${DEFAULT_PORT}}"
 
     check_ports_conflict "$REALITY_PORT" || return
 
     # SNI selection
     echo ""
-    info "Choose the REALITY SNI (server name indication)."
-    info "This must be a real website with TLS 1.3 support that is NOT behind a CDN."
+    info "Choose the REALITY SNI (must be a real domain with TLS 1.3, NOT behind CDN)."
     echo ""
-    echo -e "  ${DIM}Popular options:${NC}"
-    echo -e "  ${CYAN}[1]${NC} www.microsoft.com"
-    echo -e "  ${CYAN}[2]${NC} www.apple.com"
-    echo -e "  ${CYAN}[3]${NC} www.cloudflare.com"
-    echo -e "  ${CYAN}[4]${NC} dl.google.com"
-    echo -e "  ${CYAN}[5]${NC} Enter custom SNI"
+    echo -e "  ${CYAN}[1]${NC} www.amazon.com"
+    echo -e "  ${CYAN}[2]${NC} www.microsoft.com"
+    echo -e "  ${CYAN}[3]${NC} www.apple.com"
+    echo -e "  ${CYAN}[4]${NC} www.cloudflare.com"
+    echo -e "  ${CYAN}[5]${NC} dl.google.com"
+    echo -e "  ${CYAN}[6]${NC} Enter custom SNI"
     echo ""
-    read -p "$(echo -e "  ${ORANGE}Choose [1-5]: ${NC}")" sni_choice
+    read -p "$(echo -e "  ${ORANGE}Choose [1-6]: ${NC}")" sni_choice
     case "$sni_choice" in
-        1) REALITY_SNI="www.microsoft.com" ;;
-        2) REALITY_SNI="www.apple.com" ;;
-        3) REALITY_SNI="www.cloudflare.com" ;;
-        4) REALITY_SNI="dl.google.com" ;;
-        5|*)
+        1) REALITY_SNI="www.amazon.com" ;;
+        2) REALITY_SNI="www.microsoft.com" ;;
+        3) REALITY_SNI="www.apple.com" ;;
+        4) REALITY_SNI="www.cloudflare.com" ;;
+        5) REALITY_SNI="dl.google.com" ;;
+        6|*)
             read -p "$(echo -e "  ${ORANGE}Enter custom SNI: ${NC}")" REALITY_SNI
             ;;
     esac
@@ -273,15 +276,28 @@ install_protocol() {
     keypair=$(xray_gen_x25519)
     REALITY_PRIVATE_KEY=$(echo "$keypair" | grep -i "private" | awk '{print $NF}')
     REALITY_PUBLIC_KEY=$(echo "$keypair" | grep -i "public" | awk '{print $NF}')
-    REALITY_SHORT_ID=$(gen_short_id)
+    REALITY_SHORT_ID=$(openssl rand -hex 8)
+
+    if [[ -z "$REALITY_PRIVATE_KEY" || -z "$REALITY_PUBLIC_KEY" ]]; then
+        error "Failed to generate X25519 keys. Is Xray installed?"
+        pause; return
+    fi
 
     success "Private Key : ${REALITY_PRIVATE_KEY}"
     success "Public Key  : ${REALITY_PUBLIC_KEY}"
     success "Short ID    : ${REALITY_SHORT_ID}"
 
+    # Generate random path for xHTTP
+    if [[ "$TRANSPORT" == "xhttp" ]]; then
+        REALITY_PATH="/$(openssl rand -hex 6)"
+        info "xHTTP Path  : ${REALITY_PATH}"
+    else
+        REALITY_PATH=""
+    fi
+
     save_reality_keys
 
-    # Build inbound JSON
+    # Build inbound JSON — exactly matching the working template
     local inbound_json
     if [[ "$TRANSPORT" == "tcp" ]]; then
         inbound_json=$(cat <<EOF
@@ -327,6 +343,10 @@ EOF
   "streamSettings": {
     "network": "xhttp",
     "security": "reality",
+    "xhttpSettings": {
+      "path": "${REALITY_PATH}",
+      "mode": "auto"
+    },
     "realitySettings": {
       "show": false,
       "dest": "${REALITY_SNI}:443",
@@ -334,10 +354,6 @@ EOF
       "serverNames": ["${REALITY_SNI}"],
       "privateKey": "${REALITY_PRIVATE_KEY}",
       "shortIds": ["${REALITY_SHORT_ID}"]
-    },
-    "xhttpSettings": {
-      "path": "/",
-      "mode": "auto"
     }
   },
   "sniffing": { "enabled": true, "destOverride": ["http","tls","quic"] }
@@ -346,28 +362,27 @@ EOF
 )
     fi
 
-    # Remove existing inbound with same tag (if any) and add new one
     local config="/usr/local/etc/xray/config.json"
     if [[ ! -f "$config" ]]; then
         cp /opt/imagitech-xray/configs/xray_base.json "$config"
         mkdir -p /opt/imagitech-xray/core/logs
     fi
 
-    # Remove old inbound with this tag
+    step "Removing old '${INBOUND_TAG}' inbound..."
     jq --arg t "$INBOUND_TAG" \
         '.inbounds |= map(select(.tag != $t))' \
         "$config" > /tmp/xray_tmp.json && mv /tmp/xray_tmp.json "$config"
 
-    # Add new inbound (re-add existing users from user file)
+    step "Injecting new inbound..."
     jq --argjson inbound "$inbound_json" \
         '.inbounds += [$inbound]' \
         "$config" > /tmp/xray_tmp.json && mv /tmp/xray_tmp.json "$config"
 
-    # Re-add all existing users from user file
+    # Re-add all existing users
     local uf
     uf=$(users_file "$USERS_PROTO")
     if [[ -f "$uf" && -s "$uf" ]]; then
-        step "Re-adding ${BOLD}$(wc -l < "$uf")${NC} existing user(s) to config..."
+        step "Re-adding $(wc -l < "$uf") existing user(s)..."
         while IFS='|' read -r uid uremark _; do
             xray_add_vless_client "$INBOUND_TAG" "$uid" "$uremark" "$FLOW"
         done < "$uf"
@@ -376,10 +391,15 @@ EOF
     xray_reload
     echo ""
     success "${PROTO_LABEL} installed and configured!"
-    kv "Port"    "$REALITY_PORT"
-    kv "SNI"     "$REALITY_SNI"
-    kv "PubKey"  "$REALITY_PUBLIC_KEY"
-    kv "ShortID" "$REALITY_SHORT_ID"
+    kv "Port"     "$REALITY_PORT"
+    kv "SNI"      "$REALITY_SNI"
+    if [[ "$TRANSPORT" == "xhttp" ]]; then
+        kv "Path"     "$REALITY_PATH"
+    fi
+    kv "PubKey"   "$REALITY_PUBLIC_KEY"
+    kv "ShortID"  "$REALITY_SHORT_ID"
+    echo ""
+    info "Use option [01] to add users, then [04] to get the share link."
     echo ""
     pause
 }
@@ -397,6 +417,7 @@ manage_service() {
     echo -e "  ${CYAN}[2]${NC} Stop Xray"
     echo -e "  ${CYAN}[3]${NC} Restart Xray"
     echo -e "  ${CYAN}[4]${NC} View Status"
+    echo -e "  ${CYAN}[5]${NC} View Logs (last 30)"
     echo -e "  ${RED}[0]${NC} Back"
     echo ""
     read -p "$(echo -e "  ${ORANGE}Choose: ${NC}")" ch
@@ -404,8 +425,18 @@ manage_service() {
         1) xray_start;   success "Xray started." ;;
         2) xray_stop;    success "Xray stopped." ;;
         3) xray_restart; success "Xray restarted." ;;
-        4) xray_status ;;
+        4) clear; xray_status ;;
+        5)
+            clear; draw_line
+            echo -e "  ${BOLD}XRAY LOGS${NC}"; draw_line; echo ""
+            if [[ -f /opt/imagitech-xray/core/logs/error.log ]]; then
+                tail -30 /opt/imagitech-xray/core/logs/error.log
+            else
+                journalctl -u xray --no-pager -n 30 2>/dev/null
+            fi
+            ;;
         0) return ;;
+        *) error "Invalid option." ;;
     esac
     pause
 }
@@ -424,10 +455,13 @@ show_config_info() {
     kv "Transport"      "$TRANSPORT"
     kv "Port"           "${REALITY_PORT:-not set}"
     kv "SNI"            "${REALITY_SNI:-not set}"
-    kv "Private Key"    "${REALITY_PRIVATE_KEY:-not set}"
+    if [[ "$TRANSPORT" == "xhttp" ]]; then
+        kv "Path"           "${REALITY_PATH:-not set}"
+    fi
+    kv "Private Key"    "${REALITY_PRIVATE_KEY:+****${REALITY_PRIVATE_KEY: -6}}"
     kv "Public Key"     "${REALITY_PUBLIC_KEY:-not set}"
     kv "Short ID"       "${REALITY_SHORT_ID:-not set}"
-    kv "Flow"           "${FLOW:-none}"
+    kv "Flow"           "${FLOW:-none (xHTTP)}"
     kv "Users"          "$(users_count "$USERS_PROTO")"
     echo ""
     pause

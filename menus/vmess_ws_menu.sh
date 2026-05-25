@@ -257,7 +257,7 @@ install_protocol() {
     info "Checking for port conflicts on internal port ${LOCAL_PORT}..."
     check_ports_conflict "$LOCAL_PORT" || return
 
-    # Build inbound JSON — VMess client list starts empty; alterId is set at the user level
+    # Build inbound JSON — security:none because Nginx terminates TLS
     local inbound_json
     inbound_json=$(cat <<EOF
 {
@@ -270,16 +270,7 @@ install_protocol() {
   },
   "streamSettings": {
     "network": "ws",
-    "security": "tls",
-    "tlsSettings": {
-      "serverName": "${DOMAIN}",
-      "certificates": [
-        {
-          "certificateFile": "${CERT_PATH}",
-          "keyFile": "${KEY_PATH}"
-        }
-      ]
-    },
+    "security": "none",
     "wsSettings": {
       "path": "${WS_PATH}",
       "headers": {
